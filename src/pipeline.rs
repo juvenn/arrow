@@ -1,6 +1,8 @@
+use anyhow::Context as _;
 use serde::Deserialize;
 use serde_yaml as yaml;
 use std::fs::File;
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 use crate::context::Context;
@@ -18,32 +20,37 @@ impl Pipelines {
         }
     }
 
-    pub fn parse_pipelines(dir: String) -> Result<Vec<Pipeline>, yaml::Error> {
+    pub fn parse_pipelines(dir: &str) -> anyhow::Result<Vec<Pipeline>> {
         let mut pipelines = Vec::new();
-        let pipeline_dir = std::path::PathBuf::from(dir);
-        for entry in std::fs::read_dir(pipeline_dir).unwrap() {
-            let path = entry.unwrap().path();
+        let pipeline_dir = PathBuf::from(dir);
+        for entry in std::fs::read_dir(pipeline_dir)
+            .with_context(|| format!("Failed to read pipeline definitions from {}", dir))?
+        {
+            let path = entry?.path();
             if path.is_file() {
-                let pipeline = Pipelines::parse_file(path.to_str().unwrap())?;
+                let pipeline = Self::parse_path(&path)?;
                 pipelines.push(pipeline);
             }
         }
         Ok(pipelines)
     }
 
-    pub fn parse_file(filename: &str) -> Result<Pipeline, yaml::Error> {
-        let file = File::open(filename).unwrap();
-        let pipeline: Pipeline = yaml::from_reader(file)?;
+    fn parse_path(path: &PathBuf) -> anyhow::Result<Pipeline> {
+        let name = path.display();
+        let file = File::open(path).with_context(|| format!("Failed to open file {}", name))?;
+        let pipeline: Pipeline = yaml::from_reader(file)
+            .with_context(|| format!("Failed to parse definition file {}", name))?;
         Ok(pipeline)
     }
 
-    pub fn run(&mut self) {
+    pub fn run(&mut self) -> anyhow::Result<()> {
         // TODO: allow to customize pipeline dir
-        let pipelines = Self::parse_pipelines(".arrow".to_string()).unwrap();
+        let pipelines = Self::parse_pipelines(".arrow")?;
         self.pipelines = pipelines;
         for pipeline in &self.pipelines {
-            pipeline.run(&self.context);
+            pipeline.run(&self.context)?;
         }
+        Ok(())
     }
 }
 
@@ -56,11 +63,12 @@ pub struct Pipeline {
 #[derive(Debug, Deserialize)]
 pub struct Action {
     name: String,
+    xxx: String,
     script: String,
 }
 
 impl Pipeline {
-    pub fn run(&self, ctx: &Context) -> Result<(), yaml::Error> {
+    pub fn run(&self, ctx: &Context) -> anyhow::Result<()> {
         println!("{}", self.name);
         println!("----");
         for action in &self.actions {
@@ -71,18 +79,16 @@ impl Pipeline {
 }
 
 impl Action {
-    pub fn run(&self, ctx: &Context) -> Result<(), yaml::Error> {
+    pub fn run(&self, ctx: &Context) -> anyhow::Result<()> {
         println!("### {}", self.name);
-        let mut script = "set -ex\n".to_string();
-        script.push_str(&self.script);
         let output = Command::new("sh")
             .arg("-x")
             .arg("-c")
-            .arg(script)
+            .arg(&self.script)
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
-            .output()
-            .expect("failed to execute process");
+            .output()?;
+        println!("### Done: {}", self.name);
         Ok(())
     }
 }
