@@ -1,3 +1,4 @@
+mod action;
 mod context;
 mod pipeline;
 use anyhow::anyhow;

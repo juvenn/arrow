@@ -1,10 +1,10 @@
 use anyhow::Context as _;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use serde_yaml as yaml;
 use std::fs::File;
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
 
+use crate::action::{Action, IAction};
 use crate::context::Context;
 
 pub struct Pipelines {
@@ -56,19 +56,54 @@ impl Pipelines {
 
 #[derive(Debug, Deserialize)]
 pub struct Pipeline {
-    pub name: String,
-    pub actions: Vec<Action>,
+    name: String,
+    #[serde(default = "WhenSpec::on_main_branch")]
+    when: WhenSpec,
+    actions: Vec<Action>,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct Action {
-    name: String,
-    xxx: String,
-    script: String,
+pub struct WhenSpec {
+    branch: Vec<String>, // list of branch to trigger on
+    #[serde(default)]
+    changes: Vec<String>, // list of glob patterns, relative to repo root
+}
+
+impl WhenSpec {
+    pub fn on_main_branch() -> WhenSpec {
+        WhenSpec {
+            branch: vec!["master".to_string(), "main".to_string()],
+            changes: Vec::new(),
+        }
+    }
+
+    pub fn match_changes(&self, branch: &String, fileset: Option<Vec<String>>) -> bool {
+        if self.branch.is_empty() {
+            return false;
+        }
+        if !(self.branch[0] == "*" || self.branch.contains(branch)) {
+            return false;
+        }
+        if self.changes.is_empty() {
+            return true;
+        }
+
+        // TODO: precompile glob patterns
+        self.changes.iter().any(|pat| {
+            let pattern = glob::Pattern::new(pat).unwrap();
+            match &fileset {
+                Some(fileset) => fileset.iter().any(|f| pattern.matches(f)),
+                None => false,
+            }
+        })
+    }
 }
 
 impl Pipeline {
     pub fn run(&self, ctx: &Context) -> anyhow::Result<()> {
+        if !self.should_run(ctx) {
+            return Ok(());
+        }
         println!("{}", self.name);
         println!("----");
         for action in &self.actions {
@@ -76,19 +111,8 @@ impl Pipeline {
         }
         Ok(())
     }
-}
 
-impl Action {
-    pub fn run(&self, ctx: &Context) -> anyhow::Result<()> {
-        println!("### {}", self.name);
-        let output = Command::new("sh")
-            .arg("-x")
-            .arg("-c")
-            .arg(&self.script)
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit())
-            .output()?;
-        println!("### Done: {}", self.name);
-        Ok(())
+    fn should_run(&self, ctx: &Context) -> bool {
+        self.when.match_changes(&ctx.branch, ctx.get_fileset())
     }
 }

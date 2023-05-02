@@ -6,7 +6,8 @@ pub struct Context {
     pub refname: String, // branch name
     pub old_rev: String, // old revision
     pub new_rev: String, // new revision
-    workspace: PathBuf,  // where to checkout the repo
+    pub branch: String,
+    workspace: PathBuf, // where to checkout the repo
     repo_dir: PathBuf,
     fileset: Option<Vec<String>>, // files that have changed
 }
@@ -19,8 +20,13 @@ impl Context {
         let mut workspace = dirs::home_dir().unwrap_or(PathBuf::from("/tmp"));
         workspace.push("arrow");
         let repo_dir = PathBuf::from(env::var("GIT_DIR").unwrap_or_default());
+        let branch = refname.split('/').last().unwrap_or_default().to_string();
+        if branch.is_empty() {
+            eprintln!("No branch resolved from {}", refname);
+        }
         let ctx = Context {
             refname,
+            branch,
             old_rev,
             new_rev,
             workspace,
@@ -30,14 +36,12 @@ impl Context {
         ctx
     }
 
-    pub fn resolve_fileset(&mut self) -> Vec<String> {
-        match &self.fileset {
-            Some(fileset) => return fileset.clone(),
-            None => {
-                let fileset = Self::get_fileset_from_git(&self.old_rev, &self.new_rev);
-                self.fileset = Some(fileset.clone());
-                return fileset;
-            }
+    pub fn get_fileset(&self) -> Option<Vec<String>> {
+        if self.old_rev == "" || self.new_rev == "" {
+            return None;
+        } else {
+            let fileset = Self::get_fileset_from_git(&self.old_rev, &self.new_rev);
+            return Some(fileset);
         }
     }
 
