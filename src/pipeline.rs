@@ -1,11 +1,12 @@
 use anyhow::Context as _;
-use serde::{Deserialize, Deserializer};
+use serde::Deserialize;
 use serde_yaml as yaml;
 use std::fs::File;
 use std::path::PathBuf;
 
 use crate::action::{Action, IAction};
 use crate::context::Context;
+use crate::decode;
 
 pub struct Pipelines {
     pipelines: Vec<Pipeline>,
@@ -64,6 +65,7 @@ pub struct Pipeline {
 
 #[derive(Debug, Deserialize)]
 pub struct WhenSpec {
+    #[serde(deserialize_with = "decode::string_or_seq")]
     branch: Vec<String>, // list of branch to trigger on
     #[serde(default)]
     changes: Vec<String>, // list of glob patterns, relative to repo root

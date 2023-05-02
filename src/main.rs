@@ -1,5 +1,6 @@
 mod action;
 mod context;
+mod decode;
 mod pipeline;
 use anyhow::anyhow;
 use clap::Parser;
