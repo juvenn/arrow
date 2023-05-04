@@ -8,22 +8,22 @@ use crate::action::{Action, IAction};
 use crate::context::Context;
 use crate::decode;
 
+#[derive(Debug, Default)]
 pub struct Pipelines {
     pipelines: Vec<Pipeline>,
-    context: Context,
 }
 
 impl Pipelines {
-    pub fn new(context: Context) -> Self {
-        Pipelines {
-            pipelines: Vec::new(),
-            context,
-        }
+    pub fn new() -> Self {
+        Pipelines::default()
     }
 
     pub fn parse_pipelines(dir: &str) -> anyhow::Result<Vec<Pipeline>> {
         let mut pipelines = Vec::new();
         let pipeline_dir = PathBuf::from(dir);
+        if !pipeline_dir.exists() {
+            return Ok(pipelines);
+        }
         for entry in std::fs::read_dir(pipeline_dir)
             .with_context(|| format!("Failed to read pipeline definitions from {}", dir))?
         {
@@ -44,13 +44,14 @@ impl Pipelines {
         Ok(pipeline)
     }
 
-    pub fn run(&mut self) -> anyhow::Result<()> {
-        // TODO: allow to customize pipeline dir
+    pub fn run(&mut self, ctx: Context) -> anyhow::Result<()> {
+        ctx.checkout_workspace()?;
         let pipelines = Self::parse_pipelines(".arrow")?;
         self.pipelines = pipelines;
         for pipeline in &self.pipelines {
-            pipeline.run(&self.context)?;
+            pipeline.run(&ctx)?;
         }
+        ctx.cleanup_workspace()?;
         Ok(())
     }
 }
@@ -58,32 +59,43 @@ impl Pipelines {
 #[derive(Debug, Deserialize)]
 pub struct Pipeline {
     name: String,
-    #[serde(default = "WhenSpec::on_main_branch")]
+    #[serde(default = "WhenSpec::always")]
     when: WhenSpec,
     actions: Vec<Action>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 pub struct WhenSpec {
-    #[serde(deserialize_with = "decode::string_or_seq")]
+    #[serde(
+        default = "WhenSpec::any_branch",
+        deserialize_with = "decode::string_or_seq"
+    )]
     branch: Vec<String>, // list of branch to trigger on
     #[serde(default)]
     changes: Vec<String>, // list of glob patterns, relative to repo root
 }
 
+/// A special branch name that matches all branches
+const STAR_BRANCH: &str = "*";
+
 impl WhenSpec {
-    pub fn on_main_branch() -> WhenSpec {
+    /// A spec runs on all branches and all changes
+    pub fn always() -> WhenSpec {
         WhenSpec {
-            branch: vec!["master".to_string(), "main".to_string()],
+            branch: vec![STAR_BRANCH.to_string()],
             changes: Vec::new(),
         }
+    }
+
+    pub fn any_branch() -> Vec<String> {
+        vec!["*".to_string()]
     }
 
     pub fn match_changes(&self, branch: &String, fileset: Option<Vec<String>>) -> bool {
         if self.branch.is_empty() {
             return false;
         }
-        if !(self.branch[0] == "*" || self.branch.contains(branch)) {
+        if !(self.branch[0] == STAR_BRANCH || self.branch.contains(branch)) {
             return false;
         }
         if self.changes.is_empty() {
