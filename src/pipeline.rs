@@ -5,8 +5,8 @@ use std::fs::File;
 use std::path::PathBuf;
 
 use crate::action::{Action, IAction};
-use crate::context::Context;
 use crate::decode;
+use crate::repo::Context;
 
 #[derive(Debug, Default)]
 pub struct Pipelines {
@@ -40,14 +40,18 @@ impl Pipelines {
         let name = path.display();
         let file = File::open(path).with_context(|| format!("Failed to open file {}", name))?;
         let pipeline: Pipeline = yaml::from_reader(file)
-            .with_context(|| format!("Failed to parse definition file {}", name))?;
+            .with_context(|| format!("Failed to parse pipeline file {}", name))?;
         Ok(pipeline)
     }
 
     pub fn run(&mut self, ctx: Context) -> anyhow::Result<()> {
         ctx.checkout_workspace()?;
-        let pipelines = Self::parse_pipelines(".arrow")?;
-        self.pipelines = pipelines;
+        self.pipelines = Self::parse_pipelines(".arrow")?;
+        if self.pipelines.is_empty() {
+            return Ok(());
+        }
+        println!("GIT_DIR: {}", ctx.repo_dir.display());
+        println!("On {}: {}..{}", ctx.branch, ctx.old_rev, ctx.new_rev);
         for pipeline in &self.pipelines {
             pipeline.run(&ctx)?;
         }

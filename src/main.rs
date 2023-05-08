@@ -1,11 +1,11 @@
 mod action;
-mod context;
 mod decode;
 mod pipeline;
+mod repo;
 use anyhow::anyhow;
 use clap::{Parser, Subcommand};
-use context::Context;
 use pipeline::Pipelines;
+use repo::Context;
 use std::env;
 use std::io;
 
@@ -34,12 +34,16 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Run as in post-receive (or pre-receive) hook mode
 fn run_hook() -> anyhow::Result<()> {
     let mut input = String::new();
     io::stdin().read_line(&mut input).unwrap_or_default();
     let args: Vec<String> = input.split_whitespace().map(String::from).collect();
     if args.len() < 3 {
-        return Err(anyhow!("Not enough arguments"));
+        return Err(anyhow!(
+            "Expect stdin in format: <oldrev> <newrev> <ref>, but given: {}",
+            input
+        ));
     }
     let ctx = Context::resolve_on_hook(args[2].clone(), args[0].clone(), args[1].clone())?;
     let mut pipelines = Pipelines::new();

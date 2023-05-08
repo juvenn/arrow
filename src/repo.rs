@@ -24,11 +24,9 @@ impl Context {
         new_rev: String,
     ) -> anyhow::Result<Self> {
         let repo_dir = Self::resolve_repo_dir()?;
-        println!("GIT_DIR: {}", repo_dir.display());
         let branch = Self::resolve_branch(&refname)?;
         let repo_name = Self::resolve_reponame(&repo_dir);
         let workspace = PathBuf::from("/tmp/arrow-workspace"); // TODO: allow to customize
-        println!("On {}: {}..{}", branch, old_rev, new_rev);
         let ctx = Context {
             refname,
             old_rev,
@@ -104,7 +102,7 @@ impl Context {
             .output()
             .with_context(|| {
                 format!(
-                    "Failed to checkout and update work dir at {}",
+                    "Failed to checkout and update work tree at {}",
                     workdir.display()
                 )
             })?;
@@ -124,7 +122,7 @@ impl Context {
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
             .output()
-            .with_context(|| format!("Failed to git worktree remove {}", workdir.display()))?;
+            .with_context(|| format!("Failed to remove worktree {}", workdir.display()))?;
         // change back to repo dir
         env::set_current_dir(&self.repo_dir)?;
         Ok(())
@@ -177,18 +175,19 @@ impl Context {
         }
     }
 
-    fn resolve_fileset(old_rev: &String, new_rev: &String) -> Vec<String> {
+    fn resolve_fileset(old_rev: &String, new_rev: &String) -> anyhow::Result<Vec<String>> {
         let mut fileset: Vec<String> = Vec::new();
         let diff_cmd = format!("git diff --name-only {}..{}", old_rev, new_rev);
         let output = Command::new("sh")
             .arg("-c")
             .arg(diff_cmd)
+            .stderr(Stdio::inherit())
             .output()
-            .expect("failed to execute process");
+            .with_context(|| format!("Command error: {}", diff_cmd))?;
         let output = String::from_utf8_lossy(&output.stdout);
         for line in output.lines() {
             fileset.push(line.to_string());
         }
-        fileset
+        Ok(fileset)
     }
 }
