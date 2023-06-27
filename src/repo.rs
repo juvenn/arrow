@@ -27,6 +27,7 @@ impl Context {
         let branch = Self::resolve_branch(&refname)?;
         let repo_name = Self::resolve_reponame(&repo_dir);
         let workspace = PathBuf::from("/tmp/arrow-workspace"); // TODO: allow to customize
+        let fileset = Self::resolve_fileset(&old_rev, &new_rev)?;
         let ctx = Context {
             refname,
             old_rev,
@@ -35,7 +36,7 @@ impl Context {
             repo_name,
             workspace,
             repo_dir,
-            fileset: None,
+            fileset: Some(fileset),
         };
         Ok(ctx)
     }
@@ -167,12 +168,7 @@ impl Context {
     }
 
     pub fn get_fileset(&self) -> Option<Vec<String>> {
-        if self.old_rev == "" || self.new_rev == "" {
-            return None;
-        } else {
-            let fileset = Self::resolve_fileset(&self.old_rev, &self.new_rev);
-            return Some(fileset);
-        }
+        return self.fileset.clone();
     }
 
     fn resolve_fileset(old_rev: &String, new_rev: &String) -> anyhow::Result<Vec<String>> {
@@ -180,10 +176,10 @@ impl Context {
         let diff_cmd = format!("git diff --name-only {}..{}", old_rev, new_rev);
         let output = Command::new("sh")
             .arg("-c")
-            .arg(diff_cmd)
+            .arg(&diff_cmd)
             .stderr(Stdio::inherit())
             .output()
-            .with_context(|| format!("Command error: {}", diff_cmd))?;
+            .with_context(|| format!("Command error: {}", &diff_cmd))?;
         let output = String::from_utf8_lossy(&output.stdout);
         for line in output.lines() {
             fileset.push(line.to_string());
