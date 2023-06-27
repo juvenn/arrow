@@ -48,6 +48,7 @@ impl Pipelines {
         ctx.checkout_workspace()?;
         self.pipelines = Self::parse_pipelines(".arrow")?;
         if self.pipelines.is_empty() {
+            ctx.cleanup_workspace()?;
             return Ok(());
         }
         println!("GIT_DIR: {}", ctx.repo_dir.display());

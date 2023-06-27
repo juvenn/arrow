@@ -84,7 +84,7 @@ impl Context {
                     workdir.display()
                 )
             })?;
-        env::set_current_dir(&self.workspace)?;
+        env::set_current_dir(&workdir)?;
         println!("Workspace: {}", workdir.display());
         Ok(())
     }
@@ -107,14 +107,16 @@ impl Context {
                     workdir.display()
                 )
             })?;
-        env::set_current_dir(&self.workspace)?;
+        env::set_current_dir(&workdir)?;
         println!("Workspace: {}", workdir.display());
         Ok(())
     }
 
     fn cleanup_worktree(&self, branch: &String) -> anyhow::Result<()> {
+        // change back to repo dir
+        env::set_current_dir(&self.repo_dir)?;
         let workdir = Self::build_worktree_dir(&self, branch);
-        let script = format!("git worktree remove {}", workdir.to_string_lossy());
+        let script = format!("git worktree remove --force {}", workdir.to_string_lossy());
 
         let _ = Command::new("sh")
             .arg("-ex")
@@ -124,8 +126,6 @@ impl Context {
             .stderr(Stdio::inherit())
             .output()
             .with_context(|| format!("Failed to remove worktree {}", workdir.display()))?;
-        // change back to repo dir
-        env::set_current_dir(&self.repo_dir)?;
         Ok(())
     }
 
