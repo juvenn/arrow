@@ -123,6 +123,7 @@ impl Pipeline {
         if !self.should_run(ctx) {
             return Ok(());
         }
+        println!();
         println!("{}", self.name);
         println!("----");
         for action in &self.actions {

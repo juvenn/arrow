@@ -1,22 +1,28 @@
 use crate::repo::Context;
 use anyhow;
 use serde::Deserialize;
-use std::process::{Command, Stdio};
+use std::{
+    io::{BufRead, BufReader},
+    process::{Command, Stdio},
+};
 
 #[derive(Debug, Deserialize)]
 #[serde(tag = "runner")]
 pub enum Action {
     #[serde(rename = "shell")]
     Shell(ShellAction),
-
+    #[serde(rename = "bash")]
+    Bash(ShellAction),
     #[serde(rename = "ssh")]
     Ssh(SshAction),
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct ShellAction {
     name: String,
     script: String,
+    #[serde(skip)]
+    shell: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -33,9 +39,19 @@ pub trait IAction {
 
 impl IAction for Action {
     fn run(&self, ctx: &Context) -> anyhow::Result<()> {
+        println!("");
         match self {
-            Action::Shell(action) => action.run(ctx),
             Action::Ssh(action) => action.run(ctx),
+            Action::Shell(action) => {
+                let mut action = action.clone();
+                action.shell = "sh".to_string();
+                action.run(ctx)
+            }
+            Action::Bash(action) => {
+                let mut action = action.clone();
+                action.shell = "bash".to_string();
+                action.run(ctx)
+            }
         }
     }
 }
@@ -43,14 +59,22 @@ impl IAction for Action {
 impl IAction for ShellAction {
     fn run(&self, ctx: &Context) -> anyhow::Result<()> {
         println!("### {}", self.name);
-        let output = Command::new("sh")
-            .arg("-x")
+        let mut child = Command::new(self.shell.clone())
             .arg("-c")
             .arg(&self.script)
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit())
-            .output()?;
-        println!("Done: {}", self.name);
+            .stdout(Stdio::piped())
+            .spawn()?;
+        if let Some(ref mut stdout) = child.stdout {
+            let reader = BufReader::new(stdout);
+            for line in reader.lines() {
+                match line {
+                    Ok(line) => println!("  {}", line),
+                    Err(err) => eprintln!("Error: {}", err),
+                }
+            }
+        }
+        let _ = child.wait()?;
+
         Ok(())
     }
 }
