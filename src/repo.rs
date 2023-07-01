@@ -11,8 +11,11 @@ pub struct Context {
     pub branch: String,
     pub repo_dir: PathBuf, // absolute path to .git dir
     pub repo_name: String,
-    pub workspace: PathBuf,       // where to checkout the repo
-    fileset: Option<Vec<String>>, // files that have changed
+    pub workspace: PathBuf, // where to checkout the repo
+    /// whether capable of worktree or not
+    cap_worktree: bool,
+    /// files that have changed
+    fileset: Option<Vec<String>>,
 }
 
 /// Worktree represents a checkout of repo, which will be cleaned upon drop
@@ -39,6 +42,7 @@ impl Context {
         let repo_name = Self::resolve_reponame(&repo_dir);
         let workspace = PathBuf::from("/tmp/arrow-workspace"); // TODO: allow to customize
         let fileset = Self::resolve_fileset(&old_rev, &new_rev)?;
+        let cap_worktree = Self::resolve_worktree_capable();
         let ctx = Context {
             refname,
             old_rev,
@@ -47,43 +51,67 @@ impl Context {
             repo_name,
             workspace,
             repo_dir,
+            cap_worktree,
             fileset: Some(fileset),
         };
         Ok(ctx)
     }
 
-    /// Checkout or init work dir with latest changes. It also changes the
-    /// current working dir for the process.
+    /// Checkout or init work dir with latest changes. It will try to use
+    /// worktree if possible, or fallback to clone.
+    ///
+    /// It also change current working dir for the process.
     pub fn checkout_workspace(&self) -> anyhow::Result<Worktree> {
-        self.checkout_worktree(&self.branch)?;
+        if self.cap_worktree {
+            self.checkout_worktree(&self.branch)?;
+        } else {
+            self.checkout_clone(&self.branch)?;
+        }
         Result::Ok(Worktree { ctx: &self })
     }
 
+    /// Cleanup work dir after all actions are done
     pub fn cleanup_workspace(&self) -> anyhow::Result<()> {
-        self.cleanup_worktree(&self.branch)
+        if self.cap_worktree {
+            self.cleanup_worktree(&self.branch)
+        } else {
+            self.cleanup_clone(&self.branch)
+        }
     }
 
-    /// Checkout or init work dir with clone.
-    fn checkout_v1(&self, branch: &String) -> anyhow::Result<()> {
+    fn print_git_ref(&self) {
+        println!("GIT_DIR: {}", self.repo_dir.display());
+        println!(
+            "On {}: {}..{}",
+            self.branch,
+            &self.old_rev[..8],
+            &self.new_rev[..8]
+        );
+    }
+
+    /// Checkout by clone the repo to {workspace}/{repo-name}
+    fn checkout_clone(&self, branch: &String) -> anyhow::Result<()> {
+        self.print_git_ref();
         let workdir = self.workspace.join(&self.repo_name);
+        let _ = std::fs::create_dir_all(&workdir)?;
         let script = format!(
             "
-            if [ ! -d {workspace} ]; then
-                mkdir -p {workspace}
-                git clone {origin} {workspace}
+            if [ ! -d .git ]; then
+                echo '.git not present, clone it'
+                git clone {origin} .
             fi
-        cd {workspace}
-        git fetch origin {branch}
-        git checkout {branch}
-        git reset --hard {new_rev}
-        git clean -fdx
-        ",
+            git clean -fdx
+            git remote update
+            git checkout {branch}
+            git reset --hard {new_rev}
+            ",
             origin = self.repo_dir.display(),
-            workspace = workdir.to_string_lossy(),
             branch = branch,
             new_rev = self.new_rev
         );
         let _ = Command::new("sh")
+            .current_dir(&workdir)
+            .env_remove("GIT_DIR") // working in new repo now
             .arg("-ex")
             .arg("-c")
             .arg(&script)
@@ -97,23 +125,25 @@ impl Context {
                 )
             })?;
         env::set_current_dir(&workdir)?;
-        println!("Workspace: {}", workdir.display());
+        println!("Work dir: {}", workdir.display());
+        Ok(())
+    }
+
+    fn cleanup_clone(&self, _: &String) -> anyhow::Result<()> {
+        // change back to repo dir
+        env::set_current_dir(&self.repo_dir)?;
+        // probably should remove the workdir?
         Ok(())
     }
 
     /// Use git worktree to checkout a working copy at {workspace}/app-{branch}
     fn checkout_worktree(&self, branch: &String) -> anyhow::Result<()> {
-        println!("GIT_DIR: {}", self.repo_dir.display());
-        println!(
-            "On {}: {}..{}",
-            self.branch,
-            &self.old_rev[..8],
-            &self.new_rev[..8]
-        );
+        self.print_git_ref();
         let workdir = Self::build_worktree_dir(&self, branch);
         let script = format!("git worktree add {} {}", workdir.to_string_lossy(), branch);
 
         let _ = Command::new("sh")
+            .current_dir(&self.repo_dir)
             .arg("-ex")
             .arg("-c")
             .arg(&script)
@@ -138,6 +168,7 @@ impl Context {
         let script = format!("git worktree remove --force {}", workdir.to_string_lossy());
 
         let _ = Command::new("sh")
+            .current_dir(&self.repo_dir)
             .arg("-ex")
             .arg("-c")
             .arg(&script)
@@ -204,5 +235,14 @@ impl Context {
             fileset.push(line.to_string());
         }
         Ok(fileset)
+    }
+
+    /// resole if git is capable of worktree
+    fn resolve_worktree_capable() -> bool {
+        let ret = Command::new("git").arg("worktree").arg("list").output();
+        if let Ok(output) = ret {
+            return output.status.success();
+        }
+        return false;
     }
 }

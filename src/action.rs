@@ -58,7 +58,7 @@ impl IAction for Action {
 
 impl IAction for ShellAction {
     fn run(&self, ctx: &Context) -> anyhow::Result<()> {
-        println!("### {}", self.name);
+        println!("### {}\n", self.name);
         let mut child = Command::new(self.shell.clone())
             .arg("-c")
             .arg(&self.script)
