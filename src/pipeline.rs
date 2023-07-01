@@ -45,18 +45,15 @@ impl Pipelines {
     }
 
     pub fn run(&mut self, ctx: Context) -> anyhow::Result<()> {
-        ctx.checkout_workspace()?;
+        let worktree = ctx.checkout_workspace()?;
         self.pipelines = Self::parse_pipelines(".arrow")?;
         if self.pipelines.is_empty() {
-            ctx.cleanup_workspace()?;
             return Ok(());
         }
-        println!("GIT_DIR: {}", ctx.repo_dir.display());
-        println!("On {}: {}..{}", ctx.branch, ctx.old_rev, ctx.new_rev);
         for pipeline in &self.pipelines {
             pipeline.run(&ctx)?;
         }
-        ctx.cleanup_workspace()?;
+        drop(worktree);
         Ok(())
     }
 }

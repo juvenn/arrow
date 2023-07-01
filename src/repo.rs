@@ -15,6 +15,17 @@ pub struct Context {
     fileset: Option<Vec<String>>, // files that have changed
 }
 
+/// Worktree represents a checkout of repo, which will be cleaned upon drop
+pub struct Worktree<'a> {
+    ctx: &'a Context,
+}
+
+impl<'a> Drop for Worktree<'a> {
+    fn drop(&mut self) {
+        self.ctx.cleanup_workspace().unwrap();
+    }
+}
+
 // Repo context
 impl Context {
     // Resolve context on hook invokation
@@ -43,8 +54,9 @@ impl Context {
 
     /// Checkout or init work dir with latest changes. It also changes the
     /// current working dir for the process.
-    pub fn checkout_workspace(&self) -> anyhow::Result<()> {
-        self.checkout_worktree(&self.branch)
+    pub fn checkout_workspace(&self) -> anyhow::Result<Worktree> {
+        self.checkout_worktree(&self.branch)?;
+        Result::Ok(Worktree { ctx: &self })
     }
 
     pub fn cleanup_workspace(&self) -> anyhow::Result<()> {
@@ -91,6 +103,13 @@ impl Context {
 
     /// Use git worktree to checkout a working copy at {workspace}/app-{branch}
     fn checkout_worktree(&self, branch: &String) -> anyhow::Result<()> {
+        println!("GIT_DIR: {}", self.repo_dir.display());
+        println!(
+            "On {}: {}..{}",
+            self.branch,
+            &self.old_rev[..8],
+            &self.new_rev[..8]
+        );
         let workdir = Self::build_worktree_dir(&self, branch);
         let script = format!("git worktree add {} {}", workdir.to_string_lossy(), branch);
 
@@ -108,7 +127,7 @@ impl Context {
                 )
             })?;
         env::set_current_dir(&workdir)?;
-        println!("Workspace: {}", workdir.display());
+        println!("Work dir: {}", env::current_dir()?.display());
         Ok(())
     }
 
