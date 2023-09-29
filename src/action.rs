@@ -1,3 +1,4 @@
+use crate::envs::Envs;
 use crate::repo::Context;
 use anyhow;
 use serde::Deserialize;
@@ -34,33 +35,35 @@ pub struct SshAction {
 }
 
 pub trait IAction {
-    fn run(&self, ctx: &Context) -> anyhow::Result<()>;
+    fn run(&self, ctx: &Context, envs: &Envs) -> anyhow::Result<()>;
 }
 
 impl IAction for Action {
-    fn run(&self, ctx: &Context) -> anyhow::Result<()> {
+    fn run(&self, ctx: &Context, envs: &Envs) -> anyhow::Result<()> {
         println!("");
         match self {
-            Action::Ssh(action) => action.run(ctx),
+            Action::Ssh(action) => action.run(ctx, envs),
             Action::Shell(action) => {
                 let mut action = action.clone();
                 action.shell = "sh".to_string();
-                action.run(ctx)
+                action.run(ctx, envs)
             }
             Action::Bash(action) => {
                 let mut action = action.clone();
                 action.shell = "bash".to_string();
-                action.run(ctx)
+                action.run(ctx, envs)
             }
         }
     }
 }
 
 impl IAction for ShellAction {
-    fn run(&self, ctx: &Context) -> anyhow::Result<()> {
+    fn run(&self, ctx: &Context, envs: &Envs) -> anyhow::Result<()> {
         println!("### {}\n", self.name);
+        let vars = envs.build_env()?;
         let mut child = Command::new(self.shell.clone())
             .arg("-c")
+            .envs(&vars)
             .arg(&self.script)
             .stdout(Stdio::piped())
             .spawn()?;
@@ -80,7 +83,7 @@ impl IAction for ShellAction {
 }
 
 impl IAction for SshAction {
-    fn run(&self, ctx: &Context) -> anyhow::Result<()> {
+    fn run(&self, ctx: &Context, envs: &Envs) -> anyhow::Result<()> {
         println!("### {}", self.name);
         println!("ssh action is yet to be implemented");
         Ok(())

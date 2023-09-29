@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 use crate::action::{Action, IAction};
 use crate::decode;
+use crate::envs::Envs;
 use crate::repo::Context;
 
 #[derive(Debug, Default)]
@@ -63,6 +64,10 @@ pub struct Pipeline {
     name: String,
     #[serde(default = "WhenSpec::always")]
     when: WhenSpec,
+
+    #[serde(flatten)]
+    envs: Envs,
+
     actions: Vec<Action>,
 }
 
@@ -124,7 +129,7 @@ impl Pipeline {
         println!("{}", self.name);
         println!("----");
         for action in &self.actions {
-            action.run(ctx)?;
+            action.run(ctx, &self.envs)?;
         }
         Ok(())
     }
