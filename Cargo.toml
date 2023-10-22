@@ -10,9 +10,11 @@ description = "Command ninja for git hook actions"
 anyhow = "1.0.71"
 clap = { version = "4.2", features = ["derive"]}
 dirs = "5.0.1"
+env-file-reader = "0.3.0"
 glob = "0.3.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9"
+tempfile = "3.8.0"
 
 [target.arm-unknown-linux-gnueabihf]
 linker = "arm-unknown-linux-gnueabihf-gcc"

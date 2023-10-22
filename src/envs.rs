@@ -2,22 +2,26 @@ use crate::decode;
 use serde::Deserialize;
 use std::collections::HashMap;
 
-use std::fs::File;
-use std::io::{BufRead, BufReader};
+use env_file_reader::read_file;
 
 /// Env variables, that can be defined in variables, or sourced from env files.
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct Envs {
-    #[serde(deserialize_with = "decode::string_or_seq")]
+    #[serde(default, deserialize_with = "decode::string_or_seq")]
     env_file: Vec<String>,
+    #[serde(default)]
     variables: HashMap<String, String>,
 }
 
 impl Envs {
-    pub fn from_map(vars: HashMap<String, String>) -> Self {
+    /// Setup ouput env file
+    pub fn with_output_env(&self, key: String, path: String) -> Self {
         let mut envs = Envs::default();
-        envs.variables = vars;
-        return envs;
+        envs.env_file.push(path.clone());
+        envs.env_file.extend(self.env_file.clone());
+        envs.variables.insert(key, path);
+        envs.variables.extend(self.variables.clone());
+        envs
     }
 
     /// Inherit env variables from parent, returns new merged one.
@@ -52,20 +56,7 @@ impl Envs {
     }
 
     fn parse_env_file(file: &String) -> anyhow::Result<HashMap<String, String>> {
-        let mut envs = HashMap::new();
-        let file = File::open(file)?;
-        let reader = BufReader::new(file);
-        for line in reader.lines() {
-            let line = line?;
-            let line = line.trim();
-            if line.is_empty() || line.starts_with('#') {
-                continue;
-            }
-            let mut parts = line.splitn(2, '=');
-            let key = parts.next().unwrap();
-            let value = parts.next().unwrap();
-            envs.insert(key.to_string(), value.to_string());
-        }
-        Ok(envs)
+        let vars = read_file(file)?;
+        Ok(vars)
     }
 }
