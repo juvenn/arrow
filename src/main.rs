@@ -1,4 +1,3 @@
-mod action;
 mod actions;
 mod decode;
 mod envs;

@@ -5,7 +5,7 @@ use std::fs::File;
 use std::path::PathBuf;
 use tempfile::{Builder, TempPath};
 
-use crate::action::{Action, IAction};
+use crate::actions::{Action, IAction};
 use crate::decode;
 use crate::envs::Envs;
 use crate::repo::Context;
