@@ -15,6 +15,7 @@ glob = "0.3.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9"
 tempfile = "3.8.0"
+ureq = { version = "*", features = ["json", "native-certs", "gzip"] }
 
 [target.arm-unknown-linux-gnueabihf]
 linker = "arm-unknown-linux-gnueabihf-gcc"

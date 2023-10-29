@@ -7,6 +7,8 @@ use std::{
     process::{Command, Stdio},
 };
 
+use crate::actions::webhook::WebHookAction;
+
 #[derive(Debug, Deserialize)]
 #[serde(tag = "runner")]
 pub enum Action {
@@ -14,6 +16,8 @@ pub enum Action {
     Shell(ShellAction),
     #[serde(rename = "bash")]
     Bash(ShellAction),
+    #[serde(rename = "webhook")]
+    WebHook(WebHookAction),
     #[serde(rename = "ssh")]
     Ssh(SshAction),
 }
@@ -56,6 +60,7 @@ impl IAction for Action {
                 action.shell = "bash".to_string();
                 action.run(ctx, parent_env)
             }
+            Action::WebHook(action) => action.run(ctx, parent_env),
         }
     }
 }
