@@ -1,7 +1,11 @@
 use anyhow::{anyhow, Context as _};
+use std::collections::HashMap;
 use std::env;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
+
+use crate::envs::Envs;
+use crate::helper::path_to_string;
 
 #[derive(Debug, Default)]
 pub struct Context {
@@ -55,6 +59,19 @@ impl Context {
             fileset: Some(fileset),
         };
         Ok(ctx)
+    }
+
+    pub fn prepare_envs(&self) -> Envs {
+        let mut vars: HashMap<String, String> = HashMap::new();
+        vars.insert("REV_OLD".to_string(), self.old_rev.clone());
+        vars.insert("REV_NEW".to_string(), self.new_rev.clone());
+        vars.insert("REF_NAME".to_string(), self.refname.clone());
+        vars.insert(
+            "ARROW_WORKSPACE".to_string(),
+            path_to_string(&self.workspace, ""),
+        );
+        vars.insert("GIT_DIR".to_string(), path_to_string(&self.repo_dir, ""));
+        Envs::from_vars(vars)
     }
 
     /// Checkout or init work dir with latest changes. It will try to use

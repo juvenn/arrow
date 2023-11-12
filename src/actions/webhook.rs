@@ -1,5 +1,6 @@
 use crate::actions::IAction;
 use crate::envs::Envs;
+use crate::helper::format_duration;
 use crate::repo::Context;
 use core::time;
 use handlebars::Handlebars;
@@ -7,7 +8,7 @@ use serde::Deserialize;
 use serde_urlencoded;
 use serde_yaml::Value;
 use std::collections::HashMap;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use ureq::{self, Response};
 
 #[derive(Debug, Deserialize, Clone)]
@@ -124,23 +125,4 @@ impl HookSpec {
         }
         Ok(out)
     }
-}
-
-fn format_duration(du: Duration) -> String {
-    let ms = du.as_millis();
-    if ms < 1000 {
-        return format!("{}ms", ms);
-    }
-    let s = du.as_secs();
-    if s < 60 {
-        return format!("{}s", s);
-    }
-    let m = s / 60;
-    let s = s % 60;
-    if m < 60 {
-        return format!("{}m{}s", m, s);
-    }
-    let h = m / 60;
-    let m = m % 60;
-    return format!("{}h{}m{}s", h, m, s);
 }

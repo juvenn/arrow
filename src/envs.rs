@@ -14,6 +14,13 @@ pub struct Envs {
 }
 
 impl Envs {
+    /// Create new Envs from hashmap
+    pub fn from_vars(vars: HashMap<String, String>) -> Self {
+        let mut envs = Envs::default();
+        envs.variables = vars;
+        envs
+    }
+
     /// Setup ouput env file
     pub fn with_output_env(&self, key: String, path: String) -> Self {
         let mut envs = Envs::default();

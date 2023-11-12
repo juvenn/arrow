@@ -129,13 +129,13 @@ impl Pipeline {
             return Ok(());
         }
         let output_env_path = Self::create_output_env_file()?;
-        let path: &std::path::Path = output_env_path.as_ref();
+        let path = output_env_path.to_path_buf();
         println!();
         println!("{}", self.name);
         println!("----");
-        let envs = self
-            .envs
-            .with_output_env(ARROW_OUTPUT.to_string(), path.to_string_lossy().to_string());
+        let envs = self.envs.inherit(&ctx.prepare_envs());
+        let envs =
+            envs.with_output_env(ARROW_OUTPUT.to_string(), path.to_string_lossy().to_string());
         for action in &self.actions {
             action.run(ctx, &envs)?;
         }
