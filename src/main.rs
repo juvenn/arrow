@@ -29,8 +29,9 @@ enum Command {
 fn main() -> anyhow::Result<()> {
     if let Ok(_) = env::var("GIT_DIR") {
         return run_hook();
+    } else {
+        let cli = Cli::parse();
     }
-    let cli = Cli::parse();
 
     Ok(())
 }
