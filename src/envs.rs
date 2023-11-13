@@ -23,11 +23,9 @@ impl Envs {
 
     /// Setup ouput env file
     pub fn with_output_env(&self, key: String, path: String) -> Self {
-        let mut envs = Envs::default();
+        let mut envs = self.clone();
         envs.env_file.push(path.clone());
-        envs.env_file.extend(self.env_file.clone());
         envs.variables.insert(key, path);
-        envs.variables.extend(self.variables.clone());
         envs
     }
 

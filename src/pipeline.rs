@@ -52,8 +52,10 @@ impl Pipelines {
         if self.pipelines.is_empty() {
             return Ok(());
         }
+        // make git env to all pipelines
+        let envs = ctx.prepare_envs();
         for pipeline in &self.pipelines {
-            pipeline.run(&ctx)?;
+            pipeline.run(&ctx, &envs)?;
         }
         drop(worktree);
         Ok(())
@@ -124,18 +126,21 @@ impl WhenSpec {
 }
 
 impl Pipeline {
-    pub fn run(&self, ctx: &Context) -> anyhow::Result<()> {
+    pub fn run(&self, ctx: &Context, parent_env: &Envs) -> anyhow::Result<()> {
         if !self.should_run(ctx) {
             return Ok(());
         }
-        let output_env_path = Self::create_output_env_file()?;
-        let path = output_env_path.to_path_buf();
         println!();
         println!("{}", self.name);
         println!("----");
-        let envs = self.envs.inherit(&ctx.prepare_envs());
-        let envs =
-            envs.with_output_env(ARROW_OUTPUT.to_string(), path.to_string_lossy().to_string());
+        let env_path = Self::create_output_env_file()?
+            .to_path_buf()
+            .to_string_lossy()
+            .to_string();
+        let envs = self
+            .envs
+            .inherit(parent_env)
+            .with_output_env(ARROW_OUTPUT.to_string(), env_path);
         for action in &self.actions {
             action.run(ctx, &envs)?;
         }
