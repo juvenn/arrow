@@ -3,7 +3,6 @@ use serde::Deserialize;
 use serde_yaml as yaml;
 use std::fs::File;
 use std::path::PathBuf;
-use tempfile::{Builder, TempPath};
 
 use crate::actions::{Action, IAction};
 use crate::decode;
@@ -87,8 +86,6 @@ pub struct WhenSpec {
 
 /// A special branch name that matches all branches
 const STAR_BRANCH: &str = "*";
-/// Env output key name
-const ARROW_OUTPUT: &str = "ARROW_OUTPUT";
 
 impl WhenSpec {
     /// A spec runs on all branches and all changes
@@ -133,14 +130,7 @@ impl Pipeline {
         println!();
         println!("{}", self.name);
         println!("----");
-        let env_path = Self::create_output_env_file()?
-            .to_path_buf()
-            .to_string_lossy()
-            .to_string();
-        let envs = self
-            .envs
-            .inherit(parent_env)
-            .with_output_env(ARROW_OUTPUT.to_string(), env_path);
+        let envs = self.envs.inherit(parent_env).setup_output_env()?;
         for action in &self.actions {
             action.run(ctx, &envs)?;
         }
@@ -149,11 +139,5 @@ impl Pipeline {
 
     fn should_run(&self, ctx: &Context) -> bool {
         self.when.match_changes(&ctx.branch, ctx.get_fileset())
-    }
-
-    /// Create temporary file for output envs
-    pub fn create_output_env_file() -> anyhow::Result<TempPath> {
-        let file = Builder::new().prefix("arrow-").suffix(".env").tempfile()?;
-        return Ok(file.into_temp_path());
     }
 }

@@ -1,6 +1,7 @@
 use crate::decode;
 use serde::Deserialize;
 use std::collections::HashMap;
+use tempfile::{Builder, TempPath};
 
 use env_file_reader::read_file;
 
@@ -13,6 +14,9 @@ pub struct Envs {
     variables: HashMap<String, String>,
 }
 
+/// Env output key name
+const OUTPUT_ENV: &str = "ARROW_ENV";
+
 impl Envs {
     /// Create new Envs from hashmap
     pub fn from_vars(vars: HashMap<String, String>) -> Self {
@@ -21,12 +25,16 @@ impl Envs {
         envs
     }
 
-    /// Setup ouput env file
-    pub fn with_output_env(&self, key: String, path: String) -> Self {
+    // Setup output env file, and export it as $ARROW_ENV.
+    pub fn setup_output_env(&self) -> anyhow::Result<Self> {
         let mut envs = self.clone();
-        envs.env_file.push(path.clone());
-        envs.variables.insert(key, path);
-        envs
+        let env_path = Self::create_output_env_file()?
+            .to_path_buf()
+            .to_string_lossy()
+            .to_string();
+        envs.env_file.push(env_path.clone());
+        envs.variables.insert(OUTPUT_ENV.to_string(), env_path);
+        Ok(envs)
     }
 
     /// Inherit env variables from parent, returns new merged one.
@@ -53,15 +61,19 @@ impl Envs {
     pub fn build_env(&self) -> anyhow::Result<HashMap<String, String>> {
         let mut vars = HashMap::new();
         for file in &self.env_file {
-            let file_envs = Self::parse_env_file(file)?;
-            vars.extend(file_envs);
+            let path = std::path::Path::new(file);
+            if path.exists() {
+                let variables = read_file(file)?;
+                vars.extend(variables);
+            }
         }
         vars.extend(self.variables.clone());
         Ok(vars)
     }
 
-    fn parse_env_file(file: &String) -> anyhow::Result<HashMap<String, String>> {
-        let vars = read_file(file)?;
-        Ok(vars)
+    /// Create temporary file for output envs
+    fn create_output_env_file() -> anyhow::Result<TempPath> {
+        let file = Builder::new().prefix("arrow-").suffix(".env").tempfile()?;
+        return Ok(file.into_temp_path());
     }
 }
