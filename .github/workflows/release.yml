@@ -55,6 +55,7 @@ jobs:
         shell: bash
         run: |
           echo "CARGO=cargo" >> $GITHUB_ENV
+          echo "CC_x86_64_unknown_linux_musl=x86_64-linux-musl-gcc" >> $GITHUB_ENV
 
       - name: Setup cross compilation
         if: ${{ matrix.use-cross == true }}
