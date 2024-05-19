@@ -3,6 +3,8 @@
 name: release
 on:
   push:
+    branches:
+      - "build"
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+"
 
@@ -39,6 +41,7 @@ jobs:
         shell: bash
         if: env.ARROW_VERSION == ''
         run: |
+          version=${GITHUB_REF_NAME:-"0.0.0"}
           echo "ARROW_VERSION=$GITHUB_REF_NAME" >> $GITHUB_ENV
           echo "version is: ${{ env.ARROW_VERSION }}"
 
@@ -57,12 +60,16 @@ jobs:
         if: ${{ matrix.use-cross == true }}
         shell: bash
         run: |
+          echo $(pwd)
+          bin="$HOME/.local/bin"
           dir="$RUNNER_TEMP/cross-download"
           mkdir "$dir"
           cd "$dir"
           curl -LO "https://github.com/cross-rs/cross/releases/download/v0.2.5/cross-x86_64-unknown-linux-musl.tar.gz"
           tar xf cross-x86_64-unknown-linux-musl.tar.gz
-          cp ./cross /usr/bin/cross
+          mkdir -p $bin
+          cp ./cross $bin
+          echo "$bin" >> $GITHUB_PATH
           echo "CARGO=cross" >> $GITHUB_ENV
           echo "RUSTFLAGS=" >> $GITHUB_ENV
           echo "TARGET_DIR=./target/${{ matrix.target }}" >> $GITHUB_ENV
